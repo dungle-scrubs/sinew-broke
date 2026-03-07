@@ -59,6 +59,21 @@ settings.minimax.enabled = false
 
 Provider adapters are disabled by default. Turn on only the ones you use.
 
+### Multiple Accounts
+
+Claude Code and GPT Subscription support multiple accounts. Use a list
+to track separate subscriptions:
+
+```toml
+settings.claude_code = [
+  { enabled = true, account_id = "personal", auth_file = "~/.claude/.credentials.json" },
+  { enabled = true, account_id = "fuse", auth_file = "~/.claude-fuse/.credentials.json" },
+]
+```
+
+Each account appears as a separate entry in the status bar popup (e.g.
+"Claude Code (personal)", "Claude Code (fuse)").
+
 ## Commands
 
 | Command | Description |

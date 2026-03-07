@@ -22,15 +22,24 @@ class ProviderSettings(BaseModel):
 
 
 class PluginSettings(BaseModel):
-    """Top-level plugin settings."""
+    """Top-level plugin settings.
+
+    Provider fields that accept ``list[ProviderSettings]`` allow tracking
+    multiple accounts for the same provider (e.g. two Claude Code
+    subscriptions with different auth files).
+    """
 
     runtime_dir: str | None = None
     secret_env_file: str | None = None
     openrouter: ProviderSettings = Field(default_factory=ProviderSettings)
-    claude_code: ProviderSettings = Field(default_factory=ProviderSettings)
+    claude_code: ProviderSettings | list[ProviderSettings] = Field(
+        default_factory=ProviderSettings
+    )
     anthropic_api: ProviderSettings = Field(default_factory=ProviderSettings)
     openai_api: ProviderSettings = Field(default_factory=ProviderSettings)
-    gpt_subscription: ProviderSettings = Field(default_factory=ProviderSettings)
+    gpt_subscription: ProviderSettings | list[ProviderSettings] = Field(
+        default_factory=ProviderSettings
+    )
     glm: ProviderSettings = Field(default_factory=ProviderSettings)
     minimax: ProviderSettings = Field(default_factory=ProviderSettings)
 

@@ -24,7 +24,7 @@ from ai_costs.providers import (
     OpenRouterAdapter,
 )
 from ai_costs.providers.base import ProviderAdapter, ProviderError
-from ai_costs.settings import PluginSettings
+from ai_costs.settings import PluginSettings, ProviderSettings
 from ai_costs.storage import Storage
 from ai_costs.utils import age_minutes, now_iso, parse_timestamp
 
@@ -49,6 +49,23 @@ DEFAULT_TYPES: dict[str, tuple[list[Capability], SourceType]] = {
 }
 
 
+def expand_provider_configs(
+    adapter: ProviderAdapter, settings: PluginSettings
+) -> list[ProviderSettings]:
+    """Normalize a single-or-list provider config into a flat list.
+
+    Providers whose settings field is a list (e.g. multiple Claude Code
+    subscriptions) are expanded into one config per account.
+    """
+
+    raw = getattr(settings, adapter.spec.provider, None)
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return raw
+    return [raw]
+
+
 def collect_snapshots(
     settings: PluginSettings, storage: Storage
 ) -> list[AccountSnapshot]:
@@ -56,15 +73,33 @@ def collect_snapshots(
 
     snapshots: list[AccountSnapshot] = []
     for adapter in FIXED_ORDER:
-        previous = storage.get_snapshot(adapter.spec.provider)
-        try:
-            snapshot = adapter.fetch(settings, storage)
-        except ProviderError as error:
-            snapshot = stale_or_error(adapter, previous, error.code, str(error))
-        except Exception as error:  # noqa: BLE001
-            snapshot = stale_or_error(adapter, previous, "AIC003", str(error))
-        storage.upsert_snapshot(snapshot)
-        snapshots.append(snapshot)
+        configs = expand_provider_configs(adapter, settings)
+        multi = len(configs) > 1
+        for config in configs:
+            scoped = settings.model_copy(
+                update={adapter.spec.provider: config}
+            )
+            previous = storage.get_snapshot(
+                adapter.spec.provider, config.account_id
+            )
+            try:
+                snapshot = adapter.fetch(scoped, storage)
+            except ProviderError as error:
+                snapshot = stale_or_error(
+                    adapter, previous, error.code, str(error),
+                    account_id=config.account_id,
+                )
+            except Exception as error:  # noqa: BLE001
+                snapshot = stale_or_error(
+                    adapter, previous, "AIC003", str(error),
+                    account_id=config.account_id,
+                )
+            if multi and config.account_id != "default":
+                snapshot.display_name = (
+                    f"{adapter.spec.display_name} ({config.account_id})"
+                )
+            storage.upsert_snapshot(snapshot)
+            snapshots.append(snapshot)
     return snapshots
 
 
@@ -73,6 +108,7 @@ def stale_or_error(
     previous: AccountSnapshot | None,
     code: str,
     message: str,
+    account_id: str = "default",
 ) -> AccountSnapshot:
     """Degrade to STALE when there is a last-known-good snapshot."""
 
@@ -90,6 +126,7 @@ def stale_or_error(
     status = "unconfigured" if code == "AIC001" else "error"
     return AccountSnapshot(
         provider=adapter.spec.provider,
+        account_id=account_id,
         display_name=adapter.spec.display_name,
         capabilities=capabilities,
         source_type=source_type,

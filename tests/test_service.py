@@ -15,14 +15,17 @@ from ai_costs.service import (
     build_popup_columns,
     build_subscription_rows,
     category_label,
+    collect_snapshots,
     detail_lines,
     detail_rows,
+    expand_provider_configs,
     format_until,
     format_usd,
     popup_height,
     primary_metric,
     quota_warning_count,
 )
+from ai_costs.settings import PluginSettings, ProviderSettings
 from ai_costs.storage import Storage
 
 
@@ -292,3 +295,66 @@ def test_build_subscription_rows_creates_one_row_per_window() -> None:
 
 def test_format_until_is_human_readable() -> None:
     assert format_until(None) == "reset unknown"
+
+
+def test_expand_provider_configs_normalizes_single_to_list() -> None:
+    from ai_costs.providers.claude_code import ClaudeCodeAdapter
+
+    adapter = ClaudeCodeAdapter()
+    settings = PluginSettings(
+        claude_code=ProviderSettings(enabled=True, account_id="personal")
+    )
+
+    configs = expand_provider_configs(adapter, settings)
+
+    assert len(configs) == 1
+    assert configs[0].account_id == "personal"
+
+
+def test_expand_provider_configs_passes_list_through() -> None:
+    from ai_costs.providers.claude_code import ClaudeCodeAdapter
+
+    adapter = ClaudeCodeAdapter()
+    settings = PluginSettings(
+        claude_code=[
+            ProviderSettings(
+                enabled=True,
+                account_id="personal",
+                auth_file="~/.claude/.credentials.json",
+            ),
+            ProviderSettings(
+                enabled=True,
+                account_id="fuse",
+                auth_file="~/.claude-fuse/.credentials.json",
+            ),
+        ]
+    )
+
+    configs = expand_provider_configs(adapter, settings)
+
+    assert len(configs) == 2
+    assert configs[0].account_id == "personal"
+    assert configs[1].account_id == "fuse"
+
+
+def test_collect_snapshots_disambiguates_multi_account_display_names(
+    tmp_path: Path,
+) -> None:
+    """Multi-account providers get account_id appended to display_name."""
+
+    settings = PluginSettings(
+        claude_code=[
+            ProviderSettings(enabled=False, account_id="personal"),
+            ProviderSettings(enabled=False, account_id="fuse"),
+        ]
+    )
+    storage = Storage(tmp_path)
+
+    snapshots = collect_snapshots(settings, storage)
+
+    claude_snapshots = [s for s in snapshots if s.provider == "claude_code"]
+    assert len(claude_snapshots) == 2
+    assert claude_snapshots[0].display_name == "Claude Code (personal)"
+    assert claude_snapshots[0].account_id == "personal"
+    assert claude_snapshots[1].display_name == "Claude Code (fuse)"
+    assert claude_snapshots[1].account_id == "fuse"
