@@ -1,0 +1,40 @@
+[project]
+name = "ai-costs"
+version = "0.1.0"
+description = "User-local Sinew plugin for AI cost and quota tracking"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "httpx>=0.28.1",
+  "pydantic>=2.11.0",
+  "typer>=0.16.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4.0",
+  "ruff>=0.12.0",
+  "ty>=0.0.1a19",
+]
+
+[project.scripts]
+ai-costs = "ai_costs.cli:main"
+ai-costs-openai = "ai_costs.cli:openai_wrapper_main"
+ai-costs-anthropic = "ai_costs.cli:anthropic_wrapper_main"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+

@@ -1,0 +1,16 @@
+name = "ai-costs"
+version = "0.1.0"
+description = "Track AI cost, credits, quotas, and subscription windows"
+entry = "run.py"
+mode = "poll"
+schema_version = 1
+
+[capabilities]
+bar = true
+popup = true
+actions = false
+
+[defaults]
+interval = 60
+popup_type = "panel"
+timeout_ms = 10000

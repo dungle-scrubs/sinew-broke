@@ -1,0 +1,9 @@
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+usage.sqlite
+cache/
+logs/
+.env.op.local
