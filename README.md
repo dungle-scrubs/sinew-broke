@@ -1,12 +1,44 @@
-# ai-costs
+# sinew-broke
 
-User-local Sinew plugin for AI spend, credits, quota windows, and subscription
-usage.
+[![CI](https://github.com/dungle-scrubs/sinew-broke/actions/workflows/ci.yml/badge.svg)](https://github.com/dungle-scrubs/sinew-broke/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org)
 
-Provider adapters are disabled by default. Turn on only the ones you actually
-use.
+Track AI spend, credits, quota windows, and subscription usage from your
+status bar. A [Sinew](https://github.com/dungle-scrubs/sinew) plugin.
 
-## Sinew config
+## Features
+
+- **Multi-provider**: OpenAI API, Anthropic API, OpenRouter, Claude Code,
+  GPT Subscription, GLM, MiniMax
+- **Cost tracking**: Today/month/lifetime USD totals derived from local
+  request ledger or authoritative APIs
+- **Subscription windows**: 5h/7d usage percentages and reset times for
+  Claude Code and GPT subscriptions
+- **Credits & quotas**: OpenRouter balance, GLM quota, MiniMax plan remains
+- **Request forwarding**: Transparent wrappers that forward real API requests
+  and record token usage automatically
+- **Versioned pricing**: Bundled per-model pricing tables for offline cost
+  calculation
+
+## Requirements
+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) package manager
+- [Sinew](https://github.com/dungle-scrubs/sinew) (for status-bar mode)
+- macOS (Keychain integration is macOS-only)
+
+## Installation
+
+```bash
+git clone https://github.com/dungle-scrubs/sinew-broke.git
+cd sinew-broke
+uv sync
+```
+
+## Sinew Configuration
+
+Enable the providers you use in your Sinew config:
 
 ```toml
 [plugins]
@@ -25,36 +57,62 @@ settings.glm.enabled = false
 settings.minimax.enabled = false
 ```
 
+Provider adapters are disabled by default. Turn on only the ones you use.
+
 ## Commands
 
-- `./run.py` — Sinew poll-mode entrypoint
-- `uv run ai-costs status --json` — dump normalized snapshots
-- `uv run ai-costs-openai record --model ... --cost-usd ...` — append OpenAI ledger entries manually
-- `uv run ai-costs-anthropic record --model ... --cost-usd ...` — append Anthropic ledger entries manually
-- `uv run ai-costs-openai forward --body-file request.json` — forward a real OpenAI request and record usage automatically
-- `uv run ai-costs-anthropic forward --body-file request.json` — forward a real Anthropic request and record usage automatically
-- `bin/ai-costs-openai-forward ...` — thin shell wrapper around the OpenAI forwarder
-- `bin/ai-costs-anthropic-forward ...` — thin shell wrapper around the Anthropic forwarder
+| Command | Description |
+|---------|-------------|
+| `./run.py` | Sinew poll-mode entrypoint |
+| `uv run ai-costs status --json` | Dump normalized provider snapshots |
+| `uv run ai-costs-openai record --model ... --cost-usd ...` | Append OpenAI ledger entry |
+| `uv run ai-costs-anthropic record --model ... --cost-usd ...` | Append Anthropic ledger entry |
+| `uv run ai-costs-openai forward --body-file request.json` | Forward OpenAI request and record usage |
+| `uv run ai-costs-anthropic forward --body-file request.json` | Forward Anthropic request and record usage |
 
 ## Examples
 
-Example payloads live in `examples/`:
+Example request payloads live in `examples/`:
 
 - `examples/openai-request.json`
 - `examples/anthropic-request.json`
 
-## Optional shell integration
+## Shell Integration
 
-If you want short commands in your shell, install the optional zsh integration:
+Optional zsh aliases for shorter commands:
 
 ```bash
-cd ~/dev/sinew-broke
 ./scripts/install-shell-integrations.sh
 source ~/.zshrc
 ```
 
-That adds:
+Adds: `aic-openai`, `aic-anthropic`, `aic-status`
 
-- `aic-openai`
-- `aic-anthropic`
-- `aic-status`
+## API Keys
+
+API keys are resolved at runtime from (in order):
+
+1. Explicit `--api-key` flag or plugin settings
+2. Environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.)
+3. JSON credential files (e.g., `~/.claude/.credentials.json`)
+4. macOS Keychain
+
+For local development, use an `.env.op.local` file with
+[opchain](https://github.com/dungle-scrubs/opchain) `op://` references.
+
+## Known Limitations
+
+- macOS only (Keychain integration, `~/Library/Application Support` paths)
+- Shell integration hardcodes `$HOME/dev/sinew-broke` — adjust if installed
+  elsewhere
+- Pricing tables need manual updates when providers change rates
+- Claude Code and GPT Subscription adapters depend on undocumented OAuth
+  endpoints that may change
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
+## License
+
+[MIT](LICENSE) © Kevin Frilot

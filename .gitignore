@@ -1,9 +1,30 @@
-.venv/
-.pytest_cache/
-.ruff_cache/
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Testing & linting
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Runtime data
 usage.sqlite
 cache/
 logs/
+
+# Secrets & env
+.env
+.env.local
 .env.op.local
+
+# OS
+.DS_Store
+*.swp
+*~
