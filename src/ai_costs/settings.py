@@ -36,7 +36,7 @@ class PluginSettings(BaseModel):
 
 
 def plugin_root() -> Path:
-    """Return the root directory of the ai-costs plugin project."""
+    """Return the root directory of the sinew-broke plugin project."""
 
     return Path(__file__).resolve().parents[2]
 
@@ -99,6 +99,6 @@ def runtime_dir(settings: PluginSettings) -> Path:
     raw = (
         settings.runtime_dir
         or os.environ.get("SINEW_RUNTIME_DIR")
-        or "~/Library/Application Support/sinew/plugins/ai-costs"
+        or "~/Library/Application Support/sinew/plugins/sinew-broke"
     )
     return Path(raw).expanduser().resolve()

@@ -1,4 +1,4 @@
-name = "ai-costs"
+name = "sinew-broke"
 version = "0.1.0"
 description = "Track AI cost, credits, quotas, and subscription windows"
 entry = "run.py"

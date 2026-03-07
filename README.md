@@ -10,12 +10,12 @@ use.
 
 ```toml
 [plugins]
-paths = ["~/dev/sinew-plugins"]
+paths = ["~/dev"]
 
 [[modules.right.right]]
 type = "plugin"
-plugin = "ai-costs"
-id = "ai-costs"
+plugin = "sinew-broke"
+id = "sinew-broke"
 settings.openai_api.enabled = true
 settings.anthropic_api.enabled = true
 settings.openrouter.enabled = false
@@ -48,7 +48,7 @@ Example payloads live in `examples/`:
 If you want short commands in your shell, install the optional zsh integration:
 
 ```bash
-cd ~/dev/sinew-plugins/ai-costs
+cd ~/dev/sinew-broke
 ./scripts/install-shell-integrations.sh
 source ~/.zshrc
 ```

@@ -2,7 +2,7 @@
 set -eu
 
 shell_rc=${1:-$HOME/.zshrc}
-source_line='source "$HOME/dev/sinew-plugins/ai-costs/shell/ai-costs.zsh"'
+source_line='source "$HOME/dev/sinew-broke/shell/ai-costs.zsh"'
 
 mkdir -p "$(dirname "$shell_rc")"
 touch "$shell_rc"
