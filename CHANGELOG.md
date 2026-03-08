@@ -31,8 +31,6 @@
 * prepare for public release ([491bdad](https://github.com/dungle-scrubs/sinew-broke/commit/491bdadcefdc6c7dbf65ede2e39c70f5c7dbd7d3))
 * **repo:** rename plugin package to sinew-broke ([6915254](https://github.com/dungle-scrubs/sinew-broke/commit/69152548474532f13ab00dc1cff0737992267e6c))
 
-## Changelog
-
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
