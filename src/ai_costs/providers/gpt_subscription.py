@@ -69,14 +69,17 @@ class GPTSubscriptionAdapter:
                 "GPT subscription auth expired; run `codex login` again",
             )
 
-        raw_windows = []
-        for key in [
-            "primary_window",
-            "secondary_window",
-            "current_window",
-            "current_cycle",
-        ]:
-            raw_window = nested_get(payload, key)
+        rate_limit = payload.get("rate_limit") or nested_get(
+            payload, "rate_limit"
+        )
+        if not isinstance(rate_limit, dict):
+            raise ProviderError(
+                "AIC003", "unsupported GPT subscription payload: missing rate_limit"
+            )
+
+        raw_windows: list[tuple[str, dict[str, object]]] = []
+        for key in ["primary_window", "secondary_window"]:
+            raw_window = rate_limit.get(key)
             if isinstance(raw_window, dict):
                 raw_windows.append((key.replace("_", " "), raw_window))
 
@@ -84,10 +87,13 @@ class GPTSubscriptionAdapter:
             WindowMetrics(
                 kind=normalized_window_kind(label, raw_window),
                 used_percent=safe_float(
-                    nested_get(raw_window, "used_percent", "percent_used")
+                    raw_window.get("used_percent")
+                    or raw_window.get("percent_used")
                 ),
                 resets_at=normalize_timestamp(
-                    nested_get(raw_window, "resets_at", "reset_at", "end_at")
+                    raw_window.get("resets_at")
+                    or raw_window.get("reset_at")
+                    or raw_window.get("end_at")
                 ),
             )
             for label, raw_window in raw_windows
