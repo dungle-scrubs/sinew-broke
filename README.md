@@ -61,8 +61,20 @@ Provider adapters are disabled by default. Turn on only the ones you use.
 
 ### Multiple Accounts
 
-Claude Code and GPT Subscription support multiple accounts. Use a list
-to track separate subscriptions:
+Claude Code and GPT Subscription support multiple accounts.
+
+Claude Code accounts are auto-discovered from `~/.config/claude-work-dirs`
+when that file points at additional Claude config directories with their own
+`.credentials.json` files. For example, this setup shows both
+`Claude Code (.claude)` and `Claude Code (.claude-fuse)` in the popup:
+
+```text
+# ~/.config/claude-work-dirs
+/Users/kevin/dev/fuse:/Users/kevin/.claude-fuse
+```
+
+Manual multi-account config still works when you want custom labels or need to
+track GPT subscriptions too:
 
 ```toml
 settings.claude_code = [
@@ -71,8 +83,7 @@ settings.claude_code = [
 ]
 ```
 
-Each account appears as a separate entry in the status bar popup (e.g.
-"Claude Code (personal)", "Claude Code (fuse)").
+Each account appears as a separate entry in the status bar popup.
 
 ## Commands
 

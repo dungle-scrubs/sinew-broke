@@ -10,6 +10,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+CLAUDE_WORK_DIRS_PATH = Path("~/.config/claude-work-dirs")
+DEFAULT_CLAUDE_AUTH_FILE = "~/.claude/.credentials.json"
+
 
 class ProviderSettings(BaseModel):
     """Configuration for a single provider adapter."""
@@ -42,6 +45,90 @@ class PluginSettings(BaseModel):
     )
     glm: ProviderSettings = Field(default_factory=ProviderSettings)
     minimax: ProviderSettings = Field(default_factory=ProviderSettings)
+
+
+def single_provider_config(
+    config: ProviderSettings | list[ProviderSettings],
+) -> ProviderSettings:
+    """Return one provider config for adapter fetch calls.
+
+    Service-level fanout expands multi-account providers before calling an
+    adapter, but direct adapter calls still see the union-typed settings field.
+    This helper narrows that union to one concrete config for type checking.
+    """
+
+    if isinstance(config, list):
+        return config[0] if config else ProviderSettings()
+    return config
+
+
+def claude_account_id(auth_file: str | None) -> str:
+    """Derive a stable Claude account label from a credentials file path."""
+
+    raw = auth_file or DEFAULT_CLAUDE_AUTH_FILE
+    return Path(raw).expanduser().parent.name or "default"
+
+
+def parse_claude_work_dirs(path: Path | None = None) -> list[str]:
+    """Return discovered Claude config directories from claude-work-dirs."""
+
+    resolved = (path or CLAUDE_WORK_DIRS_PATH).expanduser()
+    if not resolved.exists():
+        return []
+
+    config_dirs: list[str] = []
+    for line in resolved.read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        _, separator, config_dir = stripped.partition(":")
+        if not separator or not config_dir.strip():
+            continue
+        config_dirs.append(config_dir.strip())
+    return config_dirs
+
+
+def normalized_claude_auth_file(auth_file: str | None) -> str:
+    """Normalize a Claude auth file path for deduplication."""
+
+    return str(Path(auth_file or DEFAULT_CLAUDE_AUTH_FILE).expanduser())
+
+
+def discover_claude_code_configs(config: ProviderSettings) -> list[ProviderSettings]:
+    """Expand a Claude Code config with auto-discovered work-dir accounts."""
+
+    if not config.enabled:
+        return [config]
+    if config.account_id != "default" or config.auth_file is not None or config.token:
+        return [config]
+
+    primary = config.model_copy()
+    primary.auth_file = DEFAULT_CLAUDE_AUTH_FILE
+    primary.account_id = claude_account_id(primary.auth_file)
+
+    configs = [primary]
+    for config_dir in parse_claude_work_dirs():
+        auth_file = str(Path(config_dir).expanduser() / ".credentials.json")
+        if not Path(auth_file).exists():
+            continue
+        configs.append(
+            ProviderSettings(
+                account_id=claude_account_id(auth_file),
+                auth_file=auth_file,
+                base_url=config.base_url,
+                enabled=True,
+            )
+        )
+
+    unique_configs: list[ProviderSettings] = []
+    seen_auth_files: set[str] = set()
+    for candidate in configs:
+        auth_key = normalized_claude_auth_file(candidate.auth_file)
+        if auth_key in seen_auth_files:
+            continue
+        seen_auth_files.add(auth_key)
+        unique_configs.append(candidate)
+    return unique_configs
 
 
 def plugin_root() -> Path:

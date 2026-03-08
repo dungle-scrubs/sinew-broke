@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ai_costs.models import AccountSnapshot, WindowMetrics
 from ai_costs.providers.base import AdapterSpec, ProviderError, build_client, get_json
-from ai_costs.settings import PluginSettings
+from ai_costs.settings import PluginSettings, single_provider_config
 from ai_costs.storage import Storage
 from ai_costs.utils import (
     nested_get,
@@ -28,7 +28,7 @@ class ClaudeCodeAdapter:
     spec = AdapterSpec(provider="claude_code", display_name="Claude Code")
 
     def fetch(self, settings: PluginSettings, storage: Storage) -> AccountSnapshot:
-        config = settings.claude_code
+        config = single_provider_config(settings.claude_code)
         if not config.enabled:
             return AccountSnapshot(
                 provider=self.spec.provider,
