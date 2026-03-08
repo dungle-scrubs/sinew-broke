@@ -373,11 +373,11 @@ def build_subscription_rows(snapshots: list[AccountSnapshot]) -> list[PopupRow]:
     for snapshot in snapshots:
         for window in snapshot.windows[:3]:
             percent = window.used_percent or 0.0
+            reset = format_until(window.resets_at)
             rows.append(
                 PopupRow(
                     label=f"{snapshot.display_name} · {subscription_window_label(window.kind)}",
-                    detail=f"{percent:.0f}%",
-                    subtitle=format_until(window.resets_at),
+                    detail=f"{percent:.0f}% · {reset}",
                     progress=window.used_percent,
                     tone=snapshot_tone(snapshot),
                 )
