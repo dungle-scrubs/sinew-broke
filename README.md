@@ -34,8 +34,9 @@ This repo is meant to be cloned into a plugins directory that Sinew scans.
 It is not meant to be installed from a package registry.
 
 ```bash
-git clone https://github.com/dungle-scrubs/sinew-broke.git ~/dev/sinew-broke
-cd ~/dev/sinew-broke
+mkdir -p ~/dev/sinew-plugins
+git clone https://github.com/dungle-scrubs/sinew-broke.git ~/dev/sinew-plugins/sinew-broke
+cd ~/dev/sinew-plugins/sinew-broke
 uv sync
 ```
 
@@ -43,7 +44,7 @@ Then point Sinew at the parent plugins directory:
 
 ```toml
 [plugins]
-paths = ["~/dev"]
+paths = ["~/dev/sinew-plugins"]
 ```
 
 ## Sinew Configuration
@@ -139,8 +140,7 @@ For local development, use an `.env.op.local` file with
 ## Known Limitations
 
 - macOS only (Keychain integration, `~/Library/Application Support` paths)
-- Shell integration hardcodes `$HOME/dev/sinew-broke` — adjust if installed
-  elsewhere
+- Shell integration assumes `$HOME/dev/sinew-plugins/sinew-broke`
 - Pricing tables need manual updates when providers change rates
 - Claude Code and GPT Subscription adapters depend on undocumented OAuth
   endpoints that may change
