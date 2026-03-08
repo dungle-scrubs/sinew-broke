@@ -25,7 +25,11 @@ from ai_costs.service import (
     primary_metric,
     quota_warning_count,
 )
-from ai_costs.settings import PluginSettings, ProviderSettings
+from ai_costs.settings import (
+    PluginSettings,
+    ProviderSettings,
+    single_provider_config,
+)
 from ai_costs.storage import Storage
 
 
@@ -76,6 +80,17 @@ def test_quota_warning_count_only_counts_high_usage_windows() -> None:
     ]
 
     assert quota_warning_count(snapshots) == 1
+
+
+def test_single_provider_config_returns_first_account_from_list() -> None:
+    config = single_provider_config(
+        [
+            ProviderSettings(enabled=True, account_id="primary"),
+            ProviderSettings(enabled=True, account_id="secondary"),
+        ]
+    )
+
+    assert config.account_id == "primary"
 
 
 def test_build_popup_body_keeps_provider_order_stable() -> None:
@@ -290,7 +305,42 @@ def test_build_subscription_rows_creates_one_row_per_window() -> None:
     assert rows[0].label == "GPT Subscription · 5h"
     assert "60%" in rows[0].subtitle
     assert "·" in rows[0].subtitle
+    assert rows[0].tone == "success"
     assert rows[1].label == "GPT Subscription · 7d"
+
+
+def test_build_subscription_rows_alternates_claude_account_tones() -> None:
+    snapshots = [
+        AccountSnapshot(
+            provider="claude_code",
+            account_id=".claude",
+            display_name="Claude Code (.claude)",
+            capabilities=["subscription_window"],
+            source_type="oauth_usage",
+            status="ok",
+            windows=[
+                WindowMetrics(kind="5h", used_percent=12.0),
+                WindowMetrics(kind="7d", used_percent=24.0),
+            ],
+        ),
+        AccountSnapshot(
+            provider="claude_code",
+            account_id=".claude-fuse",
+            display_name="Claude Code (.claude-fuse)",
+            capabilities=["subscription_window"],
+            source_type="oauth_usage",
+            status="ok",
+            windows=[
+                WindowMetrics(kind="5h", used_percent=36.0),
+                WindowMetrics(kind="7d", used_percent=48.0),
+            ],
+        ),
+    ]
+
+    rows = build_subscription_rows(snapshots)
+
+    assert [row.tone for row in rows[:2]] == ["info", "info"]
+    assert [row.tone for row in rows[2:]] == ["success", "success"]
 
 
 def test_format_until_is_human_readable() -> None:
@@ -335,6 +385,39 @@ def test_expand_provider_configs_passes_list_through() -> None:
     assert len(configs) == 2
     assert configs[0].account_id == "personal"
     assert configs[1].account_id == "fuse"
+
+
+def test_expand_provider_configs_discovers_claude_work_dirs(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from ai_costs.providers.claude_code import ClaudeCodeAdapter
+
+    adapter = ClaudeCodeAdapter()
+    default_auth = tmp_path / ".claude" / ".credentials.json"
+    default_auth.parent.mkdir()
+    default_auth.write_text('{"access_token":"default"}')
+
+    fuse_auth = tmp_path / ".claude-fuse" / ".credentials.json"
+    fuse_auth.parent.mkdir()
+    fuse_auth.write_text('{"access_token":"fuse"}')
+
+    work_dirs = tmp_path / "claude-work-dirs"
+    work_dirs.write_text(
+        f"# comment\n/Users/kevin/dev/fuse:{fuse_auth.parent}\ninvalid-line\n"
+    )
+
+    monkeypatch.setattr("ai_costs.settings.CLAUDE_WORK_DIRS_PATH", work_dirs)
+    monkeypatch.setattr("ai_costs.settings.DEFAULT_CLAUDE_AUTH_FILE", str(default_auth))
+
+    settings = PluginSettings(claude_code=ProviderSettings(enabled=True))
+    configs = expand_provider_configs(adapter, settings)
+
+    assert len(configs) == 2
+    assert configs[0].account_id == ".claude"
+    assert configs[0].auth_file == str(default_auth)
+    assert configs[1].account_id == ".claude-fuse"
+    assert configs[1].auth_file == str(fuse_auth)
 
 
 def test_collect_snapshots_disambiguates_multi_account_display_names(

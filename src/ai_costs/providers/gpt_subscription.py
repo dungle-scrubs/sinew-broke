@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ai_costs.models import AccountSnapshot, CreditsMetrics, WindowMetrics
 from ai_costs.providers.base import AdapterSpec, ProviderError, build_client, get_json
-from ai_costs.settings import PluginSettings
+from ai_costs.settings import PluginSettings, single_provider_config
 from ai_costs.storage import Storage
 from ai_costs.utils import (
     nested_get,
@@ -42,7 +42,7 @@ class GPTSubscriptionAdapter:
     spec = AdapterSpec(provider="gpt_subscription", display_name="GPT Subscription")
 
     def fetch(self, settings: PluginSettings, storage: Storage) -> AccountSnapshot:
-        config = settings.gpt_subscription
+        config = single_provider_config(settings.gpt_subscription)
         if not config.enabled:
             return AccountSnapshot(
                 provider=self.spec.provider,
@@ -78,9 +78,7 @@ class GPTSubscriptionAdapter:
                 "GPT subscription auth expired; run `codex login` again",
             )
 
-        rate_limit = payload.get("rate_limit") or nested_get(
-            payload, "rate_limit"
-        )
+        rate_limit = payload.get("rate_limit") or nested_get(payload, "rate_limit")
         if not isinstance(rate_limit, dict):
             raise ProviderError(
                 "AIC003", "unsupported GPT subscription payload: missing rate_limit"

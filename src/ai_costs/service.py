@@ -24,7 +24,11 @@ from ai_costs.providers import (
     OpenRouterAdapter,
 )
 from ai_costs.providers.base import ProviderAdapter, ProviderError
-from ai_costs.settings import PluginSettings, ProviderSettings
+from ai_costs.settings import (
+    PluginSettings,
+    ProviderSettings,
+    discover_claude_code_configs,
+)
 from ai_costs.storage import Storage
 from ai_costs.utils import age_minutes, now_iso, parse_timestamp
 
@@ -63,6 +67,8 @@ def expand_provider_configs(
         return []
     if isinstance(raw, list):
         return raw
+    if adapter.spec.provider == "claude_code":
+        return discover_claude_code_configs(raw)
     return [raw]
 
 
@@ -76,22 +82,24 @@ def collect_snapshots(
         configs = expand_provider_configs(adapter, settings)
         multi = len(configs) > 1
         for config in configs:
-            scoped = settings.model_copy(
-                update={adapter.spec.provider: config}
-            )
-            previous = storage.get_snapshot(
-                adapter.spec.provider, config.account_id
-            )
+            scoped = settings.model_copy(update={adapter.spec.provider: config})
+            previous = storage.get_snapshot(adapter.spec.provider, config.account_id)
             try:
                 snapshot = adapter.fetch(scoped, storage)
             except ProviderError as error:
                 snapshot = stale_or_error(
-                    adapter, previous, error.code, str(error),
+                    adapter,
+                    previous,
+                    error.code,
+                    str(error),
                     account_id=config.account_id,
                 )
             except Exception as error:  # noqa: BLE001
                 snapshot = stale_or_error(
-                    adapter, previous, "AIC003", str(error),
+                    adapter,
+                    previous,
+                    "AIC003",
+                    str(error),
                     account_id=config.account_id,
                 )
             if multi and config.account_id != "default":
@@ -366,11 +374,24 @@ def build_snapshot_row(snapshot: AccountSnapshot) -> PopupRow:
     )
 
 
+def subscription_row_tone(snapshot: AccountSnapshot, claude_index: int) -> str:
+    """Choose a readable row tone for subscription windows."""
+
+    tone = snapshot_tone(snapshot)
+    if snapshot.provider != "claude_code" or tone in {"warning", "error"}:
+        return tone
+    return "info" if claude_index % 2 == 0 else "success"
+
+
 def build_subscription_rows(snapshots: list[AccountSnapshot]) -> list[PopupRow]:
     """Expand subscription providers into one row per reset window."""
 
     rows: list[PopupRow] = []
+    claude_index = 0
     for snapshot in snapshots:
+        tone = subscription_row_tone(snapshot, claude_index)
+        if snapshot.provider == "claude_code":
+            claude_index += 1
         for window in snapshot.windows[:3]:
             percent = window.used_percent or 0.0
             reset = format_until(window.resets_at)
@@ -379,7 +400,7 @@ def build_subscription_rows(snapshots: list[AccountSnapshot]) -> list[PopupRow]:
                     label=f"{snapshot.display_name} · {subscription_window_label(window.kind)}",
                     subtitle=f"{percent:.0f}% · {reset}",
                     progress=window.used_percent,
-                    tone=snapshot_tone(snapshot),
+                    tone=tone,
                 )
             )
     return rows
