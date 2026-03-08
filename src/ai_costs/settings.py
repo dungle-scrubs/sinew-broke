@@ -11,7 +11,8 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 CLAUDE_WORK_DIRS_PATH = Path("~/.config/claude-work-dirs")
-DEFAULT_CLAUDE_AUTH_FILE = "~/.claude/.credentials.json"
+DEFAULT_CLAUDE_CONFIG_DIR = "~/.claude"
+DEFAULT_CLAUDE_AUTH_FILE = f"{DEFAULT_CLAUDE_CONFIG_DIR}/.credentials.json"
 
 
 class ProviderSettings(BaseModel):
@@ -21,6 +22,7 @@ class ProviderSettings(BaseModel):
     account_id: str = "default"
     token: str | None = None
     auth_file: str | None = None
+    config_dir: str | None = None
     base_url: str | None = None
 
 
@@ -29,7 +31,7 @@ class PluginSettings(BaseModel):
 
     Provider fields that accept ``list[ProviderSettings]`` allow tracking
     multiple accounts for the same provider (e.g. two Claude Code
-    subscriptions with different auth files).
+    subscriptions with different config directories or auth files).
     """
 
     runtime_dir: str | None = None
@@ -62,11 +64,19 @@ def single_provider_config(
     return config
 
 
-def claude_account_id(auth_file: str | None) -> str:
-    """Derive a stable Claude account label from a credentials file path."""
+def normalized_claude_config_dir(
+    config_dir: str | None, auth_file: str | None = None
+) -> str:
+    """Normalize a Claude config directory for deduplication and discovery."""
 
-    raw = auth_file or DEFAULT_CLAUDE_AUTH_FILE
-    return Path(raw).expanduser().parent.name or "default"
+    raw = config_dir or str(Path(auth_file or DEFAULT_CLAUDE_AUTH_FILE).expanduser().parent)
+    return str(Path(raw).expanduser())
+
+
+def claude_account_id(config_dir: str | None, auth_file: str | None = None) -> str:
+    """Derive a stable Claude account label from a config directory."""
+
+    return Path(normalized_claude_config_dir(config_dir, auth_file)).name or "default"
 
 
 def parse_claude_work_dirs(path: Path | None = None) -> list[str]:
@@ -88,10 +98,23 @@ def parse_claude_work_dirs(path: Path | None = None) -> list[str]:
     return config_dirs
 
 
-def normalized_claude_auth_file(auth_file: str | None) -> str:
-    """Normalize a Claude auth file path for deduplication."""
+def hydrate_claude_code_config(config: ProviderSettings) -> ProviderSettings:
+    """Fill in Claude-specific defaults for one provider config."""
 
-    return str(Path(auth_file or DEFAULT_CLAUDE_AUTH_FILE).expanduser())
+    config_dir = normalized_claude_config_dir(config.config_dir, config.auth_file)
+    auth_file = config.auth_file or str(Path(config_dir) / ".credentials.json")
+    account_id = (
+        config.account_id
+        if config.account_id != "default"
+        else claude_account_id(config_dir, auth_file)
+    )
+    return config.model_copy(
+        update={
+            "config_dir": config_dir,
+            "auth_file": auth_file,
+            "account_id": account_id,
+        }
+    )
 
 
 def discover_claude_code_configs(config: ProviderSettings) -> list[ProviderSettings]:
@@ -99,34 +122,42 @@ def discover_claude_code_configs(config: ProviderSettings) -> list[ProviderSetti
 
     if not config.enabled:
         return [config]
-    if config.account_id != "default" or config.auth_file is not None or config.token:
-        return [config]
+    if (
+        config.account_id != "default"
+        or config.auth_file is not None
+        or config.config_dir is not None
+        or config.token
+    ):
+        return [hydrate_claude_code_config(config)]
 
-    primary = config.model_copy()
-    primary.auth_file = DEFAULT_CLAUDE_AUTH_FILE
-    primary.account_id = claude_account_id(primary.auth_file)
-
-    configs = [primary]
+    configs = [
+        hydrate_claude_code_config(
+            config.model_copy(update={"config_dir": DEFAULT_CLAUDE_CONFIG_DIR})
+        )
+    ]
     for config_dir in parse_claude_work_dirs():
-        auth_file = str(Path(config_dir).expanduser() / ".credentials.json")
-        if not Path(auth_file).exists():
+        resolved_dir = Path(normalized_claude_config_dir(config_dir))
+        if not resolved_dir.exists():
             continue
         configs.append(
-            ProviderSettings(
-                account_id=claude_account_id(auth_file),
-                auth_file=auth_file,
-                base_url=config.base_url,
-                enabled=True,
+            hydrate_claude_code_config(
+                ProviderSettings(
+                    account_id=claude_account_id(str(resolved_dir)),
+                    auth_file=str(resolved_dir / ".credentials.json"),
+                    config_dir=str(resolved_dir),
+                    base_url=config.base_url,
+                    enabled=True,
+                )
             )
         )
 
     unique_configs: list[ProviderSettings] = []
-    seen_auth_files: set[str] = set()
+    seen_config_dirs: set[str] = set()
     for candidate in configs:
-        auth_key = normalized_claude_auth_file(candidate.auth_file)
-        if auth_key in seen_auth_files:
+        config_key = normalized_claude_config_dir(candidate.config_dir, candidate.auth_file)
+        if config_key in seen_config_dirs:
             continue
-        seen_auth_files.add(auth_key)
+        seen_config_dirs.add(config_key)
         unique_configs.append(candidate)
     return unique_configs
 
