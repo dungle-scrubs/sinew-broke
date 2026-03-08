@@ -23,18 +23,9 @@ uv run ty check src/
 
 ## Commit Conventions
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/)
-for automated changelog generation via release-please.
-
-| Prefix | Purpose | Version Bump |
-|--------|---------|-------------|
-| `feat:` | New feature | minor (patch pre-1.0) |
-| `fix:` | Bug fix | patch |
-| `feat!:` | Breaking change | major (minor pre-1.0) |
-| `docs:` | Documentation only | changelog only |
-| `chore:` | Maintenance | changelog only |
-| `test:` | Test changes | changelog only |
-| `refactor:` | Code restructure | changelog only |
+Use clear conventional-style commit messages so history stays readable.
+There is no package publishing pipeline here, so optimize for humans instead
+of release bots.
 
 Examples:
 

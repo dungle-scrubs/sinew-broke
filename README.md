@@ -30,10 +30,20 @@ status bar. A [Sinew](https://github.com/dungle-scrubs/sinew) plugin.
 
 ## Installation
 
+This repo is meant to be cloned into a plugins directory that Sinew scans.
+It is not meant to be installed from a package registry.
+
 ```bash
-git clone https://github.com/dungle-scrubs/sinew-broke.git
-cd sinew-broke
+git clone https://github.com/dungle-scrubs/sinew-broke.git ~/dev/sinew-broke
+cd ~/dev/sinew-broke
 uv sync
+```
+
+Then point Sinew at the parent plugins directory:
+
+```toml
+[plugins]
+paths = ["~/dev"]
 ```
 
 ## Sinew Configuration
