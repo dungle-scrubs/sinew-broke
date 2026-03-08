@@ -13,4 +13,4 @@ actions = false
 [defaults]
 interval = 60
 popup_type = "panel"
-timeout_ms = 10000
+timeout_ms = 30000
