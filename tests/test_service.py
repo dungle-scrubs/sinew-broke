@@ -158,7 +158,9 @@ def test_build_popup_columns_groups_snapshots_into_sections() -> None:
     columns = build_popup_columns(snapshots)
 
     assert [column.title for column in columns] == ["Subscriptions", "Spend", "Credits"]
-    assert columns[0].rows[0].label == "Claude Code · 5h"
+    assert columns[0].rows[0].label == "Claude Code"
+    assert columns[0].rows[0].detail == "5h 37%"
+    assert columns[0].rows[0].progress == 37.0
     assert columns[1].rows[0].label == "Anthropic API"
     assert columns[2].rows[0].label == "OpenRouter"
 
@@ -282,7 +284,7 @@ def test_category_label_distinguishes_subscription_cards() -> None:
     assert category_label(snapshot) == "subscription"
 
 
-def test_build_subscription_rows_creates_one_row_per_window() -> None:
+def test_build_subscription_rows_creates_one_row_per_subscription() -> None:
     snapshot = AccountSnapshot(
         provider="gpt_subscription",
         display_name="GPT Subscription",
@@ -301,15 +303,19 @@ def test_build_subscription_rows_creates_one_row_per_window() -> None:
 
     rows = build_subscription_rows([snapshot])
 
-    assert len(rows) == 2
-    assert rows[0].label == "GPT Subscription · 5h"
-    assert "60%" in rows[0].subtitle
-    assert "·" in rows[0].subtitle
-    assert rows[0].tone == "success"
-    assert rows[1].label == "GPT Subscription · 7d"
+    assert len(rows) == 1
+    assert rows[0].label == "GPT Subscription"
+    detail = rows[0].detail or ""
+    subtitle = rows[0].subtitle or ""
+    assert "5h 60%" in detail
+    assert "7d 68%" in detail
+    assert "5h" in subtitle
+    assert "7d" in subtitle
+    assert rows[0].progress == 68.0
+    assert rows[0].tone == "info"
 
 
-def test_build_subscription_rows_alternates_claude_account_tones() -> None:
+def test_build_subscription_rows_cycles_subscription_tones() -> None:
     snapshots = [
         AccountSnapshot(
             provider="claude_code",
@@ -326,7 +332,7 @@ def test_build_subscription_rows_alternates_claude_account_tones() -> None:
         AccountSnapshot(
             provider="claude_code",
             account_id=".claude-fuse",
-            display_name="Claude Code (.claude-fuse)",
+            display_name="Claude Code (work)",
             capabilities=["subscription_window"],
             source_type="oauth_usage",
             status="ok",
@@ -335,12 +341,21 @@ def test_build_subscription_rows_alternates_claude_account_tones() -> None:
                 WindowMetrics(kind="7d", used_percent=48.0),
             ],
         ),
+        AccountSnapshot(
+            provider="gpt_subscription",
+            display_name="GPT Subscription",
+            capabilities=["subscription_window", "credits"],
+            source_type="oauth_usage",
+            status="ok",
+            windows=[
+                WindowMetrics(kind="5h", used_percent=52.0),
+            ],
+        ),
     ]
 
     rows = build_subscription_rows(snapshots)
 
-    assert [row.tone for row in rows[:2]] == ["info", "info"]
-    assert [row.tone for row in rows[2:]] == ["success", "success"]
+    assert [row.tone for row in rows] == ["info", "success", "accent"]
 
 
 def test_format_until_is_human_readable() -> None:
@@ -408,6 +423,7 @@ def test_expand_provider_configs_discovers_claude_work_dirs(
     )
 
     monkeypatch.setattr("ai_costs.settings.CLAUDE_WORK_DIRS_PATH", work_dirs)
+    monkeypatch.setattr("ai_costs.settings.DEFAULT_CLAUDE_CONFIG_DIR", str(default_auth.parent))
     monkeypatch.setattr("ai_costs.settings.DEFAULT_CLAUDE_AUTH_FILE", str(default_auth))
 
     settings = PluginSettings(claude_code=ProviderSettings(enabled=True))

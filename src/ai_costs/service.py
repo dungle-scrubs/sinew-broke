@@ -32,6 +32,13 @@ from ai_costs.settings import (
 from ai_costs.storage import Storage
 from ai_costs.utils import age_minutes, now_iso, parse_timestamp
 
+SUBSCRIPTION_TONES = ("info", "success", "accent")
+
+FRIENDLY_ACCOUNT_LABELS = {
+    ".claude": "",
+    ".claude-fuse": "work",
+}
+
 FIXED_ORDER: tuple[ProviderAdapter, ...] = (
     ClaudeCodeAdapter(),
     AnthropicAPIAdapter(),
@@ -51,6 +58,18 @@ DEFAULT_TYPES: dict[str, tuple[list[Capability], SourceType]] = {
     "minimax": (["quota_only"], "quota_only"),
     "openrouter": (["credits", "cost_usd"], "authoritative_api"),
 }
+
+
+def friendly_account_label(account_id: str) -> str:
+    """Map internal account IDs to compact display labels.
+
+    :param account_id: Raw account identifier.
+    :returns: Short UI label suffix, or the original ID when unknown.
+    """
+
+    if account_id in FRIENDLY_ACCOUNT_LABELS:
+        return FRIENDLY_ACCOUNT_LABELS[account_id]
+    return account_id
 
 
 def expand_provider_configs(
@@ -103,8 +122,11 @@ def collect_snapshots(
                     account_id=config.account_id,
                 )
             if multi and config.account_id != "default":
+                label = friendly_account_label(config.account_id)
                 snapshot.display_name = (
-                    f"{adapter.spec.display_name} ({config.account_id})"
+                    adapter.spec.display_name
+                    if not label
+                    else f"{adapter.spec.display_name} ({label})"
                 )
             storage.upsert_snapshot(snapshot)
             snapshots.append(snapshot)
@@ -374,35 +396,77 @@ def build_snapshot_row(snapshot: AccountSnapshot) -> PopupRow:
     )
 
 
-def subscription_row_tone(snapshot: AccountSnapshot, claude_index: int) -> str:
-    """Choose a readable row tone for subscription windows."""
+def subscription_row_tone(snapshot: AccountSnapshot, index: int) -> str:
+    """Choose a readable row tone for subscription summaries."""
 
     tone = snapshot_tone(snapshot)
-    if snapshot.provider != "claude_code" or tone in {"warning", "error"}:
+    if tone in {"warning", "error"}:
         return tone
-    return "info" if claude_index % 2 == 0 else "success"
+    return SUBSCRIPTION_TONES[index % len(SUBSCRIPTION_TONES)]
+
+
+def compact_window_label(kind: str) -> str:
+    """Render short subscription window labels for dense UI rows.
+
+    :param kind: Raw window label.
+    :returns: Compact display label.
+    """
+
+    label = subscription_window_label(kind)
+    return "sonnet" if label == "7d sonnet" else label
+
+
+def subscription_summary(snapshot: AccountSnapshot) -> str:
+    """Render compact per-window usage for one subscription.
+
+    :param snapshot: Subscription snapshot.
+    :returns: Compact usage summary.
+    """
+
+    parts: list[str] = []
+    for window in snapshot.windows[:3]:
+        percent = window.used_percent or 0.0
+        parts.append(f"{compact_window_label(window.kind)} {percent:.0f}%")
+    return " · ".join(parts) or primary_metric(snapshot)
+
+
+def subscription_resets(snapshot: AccountSnapshot) -> str | None:
+    """Render compact reset timing for one subscription.
+
+    :param snapshot: Subscription snapshot.
+    :returns: Compact reset summary when available.
+    """
+
+    parts: list[str] = []
+    for window in snapshot.windows[:3]:
+        reset = format_until(window.resets_at)
+        label = compact_window_label(window.kind)
+        if reset == "reset unknown":
+            continue
+        reset = reset.removeprefix("resets in ")
+        if reset == "resetting now":
+            reset = "now"
+        parts.append(f"{label} {reset}")
+    return " · ".join(parts) or row_subtitle(snapshot)
 
 
 def build_subscription_rows(snapshots: list[AccountSnapshot]) -> list[PopupRow]:
-    """Expand subscription providers into one row per reset window."""
+    """Render one compact row per subscription."""
 
     rows: list[PopupRow] = []
-    claude_index = 0
-    for snapshot in snapshots:
-        tone = subscription_row_tone(snapshot, claude_index)
-        if snapshot.provider == "claude_code":
-            claude_index += 1
-        for window in snapshot.windows[:3]:
-            percent = window.used_percent or 0.0
-            reset = format_until(window.resets_at)
-            rows.append(
-                PopupRow(
-                    label=f"{snapshot.display_name} · {subscription_window_label(window.kind)}",
-                    subtitle=f"{percent:.0f}% · {reset}",
-                    progress=window.used_percent,
-                    tone=tone,
-                )
+    for index, snapshot in enumerate(snapshots):
+        rows.append(
+            PopupRow(
+                label=snapshot.display_name,
+                detail=subscription_summary(snapshot),
+                subtitle=subscription_resets(snapshot),
+                progress=max(
+                    (window.used_percent or 0.0 for window in snapshot.windows),
+                    default=None,
+                ),
+                tone=subscription_row_tone(snapshot, index),
             )
+        )
     return rows
 
 
