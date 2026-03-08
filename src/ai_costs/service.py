@@ -377,7 +377,7 @@ def build_subscription_rows(snapshots: list[AccountSnapshot]) -> list[PopupRow]:
             rows.append(
                 PopupRow(
                     label=f"{snapshot.display_name} · {subscription_window_label(window.kind)}",
-                    detail=f"{percent:.0f}% · {reset}",
+                    subtitle=f"{percent:.0f}% · {reset}",
                     progress=window.used_percent,
                     tone=snapshot_tone(snapshot),
                 )

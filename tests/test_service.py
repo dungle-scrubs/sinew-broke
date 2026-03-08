@@ -288,8 +288,8 @@ def test_build_subscription_rows_creates_one_row_per_window() -> None:
 
     assert len(rows) == 2
     assert rows[0].label == "GPT Subscription · 5h"
-    assert "60%" in rows[0].detail
-    assert "·" in rows[0].detail
+    assert "60%" in rows[0].subtitle
+    assert "·" in rows[0].subtitle
     assert rows[1].label == "GPT Subscription · 7d"
 
 
