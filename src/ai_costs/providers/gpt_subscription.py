@@ -16,6 +16,15 @@ from ai_costs.utils import (
 )
 
 
+def _first_present(mapping: dict[str, object], *keys: str) -> object | None:
+    """Return the value of the first key that exists, even if falsy (e.g. 0)."""
+
+    for key in keys:
+        if key in mapping:
+            return mapping[key]
+    return None
+
+
 def normalized_window_kind(default_label: str, raw_window: dict[str, object]) -> str:
     """Map generic API window names onto readable time windows when possible."""
 
@@ -87,13 +96,10 @@ class GPTSubscriptionAdapter:
             WindowMetrics(
                 kind=normalized_window_kind(label, raw_window),
                 used_percent=safe_float(
-                    raw_window.get("used_percent")
-                    or raw_window.get("percent_used")
+                    _first_present(raw_window, "used_percent", "percent_used")
                 ),
                 resets_at=normalize_timestamp(
-                    raw_window.get("resets_at")
-                    or raw_window.get("reset_at")
-                    or raw_window.get("end_at")
+                    _first_present(raw_window, "resets_at", "reset_at", "end_at")
                 ),
             )
             for label, raw_window in raw_windows
