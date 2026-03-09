@@ -32,8 +32,6 @@ from ai_costs.settings import (
 from ai_costs.storage import Storage
 from ai_costs.utils import age_minutes, now_iso, parse_timestamp
 
-SUBSCRIPTION_TONES = ("info", "success", "accent")
-
 FRIENDLY_ACCOUNT_LABELS = {
     ".claude": "",
     ".claude-fuse": "work",
@@ -396,77 +394,58 @@ def build_snapshot_row(snapshot: AccountSnapshot) -> PopupRow:
     )
 
 
-def subscription_row_tone(snapshot: AccountSnapshot, index: int) -> str:
-    """Choose a readable row tone for subscription summaries."""
-
-    tone = snapshot_tone(snapshot)
-    if tone in {"warning", "error"}:
-        return tone
-    return SUBSCRIPTION_TONES[index % len(SUBSCRIPTION_TONES)]
-
-
 def compact_window_label(kind: str) -> str:
-    """Render short subscription window labels for dense UI rows.
+    """Render human-friendly subscription window labels.
 
     :param kind: Raw window label.
-    :returns: Compact display label.
+    :returns: Readable display label.
     """
 
     label = subscription_window_label(kind)
-    return "sonnet" if label == "7d sonnet" else label
-
-
-def subscription_summary(snapshot: AccountSnapshot) -> str:
-    """Render compact per-window usage for one subscription.
-
-    :param snapshot: Subscription snapshot.
-    :returns: Compact usage summary.
-    """
-
-    parts: list[str] = []
-    for window in snapshot.windows[:3]:
-        percent = window.used_percent or 0.0
-        parts.append(f"{compact_window_label(window.kind)} {percent:.0f}%")
-    return " · ".join(parts) or primary_metric(snapshot)
-
-
-def subscription_resets(snapshot: AccountSnapshot) -> str | None:
-    """Render compact reset timing for one subscription.
-
-    :param snapshot: Subscription snapshot.
-    :returns: Compact reset summary when available.
-    """
-
-    parts: list[str] = []
-    for window in snapshot.windows[:3]:
-        reset = format_until(window.resets_at)
-        label = compact_window_label(window.kind)
-        if reset == "reset unknown":
-            continue
-        reset = reset.removeprefix("resets in ")
-        if reset == "resetting now":
-            reset = "now"
-        parts.append(f"{label} {reset}")
-    return " · ".join(parts) or row_subtitle(snapshot)
+    if label == "5h":
+        return "5 hours"
+    if label == "7d":
+        return "7 days"
+    if label == "7d sonnet":
+        return "sonnet"
+    return label
 
 
 def build_subscription_rows(snapshots: list[AccountSnapshot]) -> list[PopupRow]:
-    """Render one compact row per subscription."""
+    """Render grouped borderless metric rows inside one subscriptions card."""
 
     rows: list[PopupRow] = []
-    for index, snapshot in enumerate(snapshots):
+    for snapshot in snapshots:
         rows.append(
             PopupRow(
                 label=snapshot.display_name,
-                detail=subscription_summary(snapshot),
-                subtitle=subscription_resets(snapshot),
-                progress=max(
-                    (window.used_percent or 0.0 for window in snapshot.windows),
-                    default=None,
-                ),
-                tone=subscription_row_tone(snapshot, index),
+                detail=None,
+                subtitle=None,
+                progress=None,
+                tone=None,
             )
         )
+        for window in snapshot.windows[:3]:
+            percent = window.used_percent or 0.0
+            rows.append(
+                PopupRow(
+                    label=compact_window_label(window.kind),
+                    detail=f"{percent:.0f}%",
+                    subtitle=format_until(window.resets_at),
+                    progress=window.used_percent,
+                    tone=None,
+                )
+            )
+        if not snapshot.windows:
+            rows.append(
+                PopupRow(
+                    label="status",
+                    detail=primary_metric(snapshot),
+                    subtitle=row_subtitle(snapshot),
+                    progress=row_progress(snapshot),
+                    tone=None,
+                )
+            )
     return rows
 
 

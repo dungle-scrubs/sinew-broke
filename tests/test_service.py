@@ -159,8 +159,11 @@ def test_build_popup_columns_groups_snapshots_into_sections() -> None:
 
     assert [column.title for column in columns] == ["Subscriptions", "Spend", "Credits"]
     assert columns[0].rows[0].label == "Claude Code"
-    assert columns[0].rows[0].detail == "5h 37%"
-    assert columns[0].rows[0].progress == 37.0
+    assert columns[0].rows[0].progress is None
+    assert columns[0].rows[1].label == "5 hours"
+    assert columns[0].rows[1].detail == "37%"
+    assert columns[0].rows[1].progress == 37.0
+    assert columns[0].rows[1].tone is None
     assert columns[1].rows[0].label == "Anthropic API"
     assert columns[2].rows[0].label == "OpenRouter"
 
@@ -284,7 +287,7 @@ def test_category_label_distinguishes_subscription_cards() -> None:
     assert category_label(snapshot) == "subscription"
 
 
-def test_build_subscription_rows_creates_one_row_per_subscription() -> None:
+def test_build_subscription_rows_creates_one_row_per_window() -> None:
     snapshot = AccountSnapshot(
         provider="gpt_subscription",
         display_name="GPT Subscription",
@@ -303,19 +306,22 @@ def test_build_subscription_rows_creates_one_row_per_subscription() -> None:
 
     rows = build_subscription_rows([snapshot])
 
-    assert len(rows) == 1
+    assert len(rows) == 3
     assert rows[0].label == "GPT Subscription"
-    detail = rows[0].detail or ""
-    subtitle = rows[0].subtitle or ""
-    assert "5h 60%" in detail
-    assert "7d 68%" in detail
-    assert "5h" in subtitle
-    assert "7d" in subtitle
-    assert rows[0].progress == 68.0
-    assert rows[0].tone == "info"
+    assert rows[0].progress is None
+    assert rows[0].tone is None
+    assert rows[1].label == "5 hours"
+    assert rows[1].detail == "60%"
+    assert rows[1].subtitle is not None
+    assert "reset" in (rows[1].subtitle or "")
+    assert rows[1].progress == 60.0
+    assert rows[1].tone is None
+    assert rows[2].label == "7 days"
+    assert rows[2].detail == "68%"
+    assert rows[2].progress == 68.0
 
 
-def test_build_subscription_rows_cycles_subscription_tones() -> None:
+def test_build_subscription_rows_groups_metrics_under_headers() -> None:
     snapshots = [
         AccountSnapshot(
             provider="claude_code",
@@ -355,7 +361,10 @@ def test_build_subscription_rows_cycles_subscription_tones() -> None:
 
     rows = build_subscription_rows(snapshots)
 
-    assert [row.tone for row in rows] == ["info", "success", "accent"]
+    assert [row.tone for row in rows] == [None, None, None, None, None, None, None, None]
+    assert rows[0].label == "Claude Code (.claude)"
+    assert rows[3].label == "Claude Code (work)"
+    assert rows[6].label == "GPT Subscription"
 
 
 def test_format_until_is_human_readable() -> None:
