@@ -93,7 +93,7 @@ def normalize_timestamp(value: Any) -> str | None:
     return None
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=32)
 def keychain_secret(service: str, account: str | None = None) -> str | None:
     """Read a generic-password secret from macOS Keychain."""
 
@@ -107,12 +107,27 @@ def keychain_secret(service: str, account: str | None = None) -> str | None:
     return value or None
 
 
+def token_from_payload(payload: dict[str, Any], json_keys: Iterable[str]) -> str | None:
+    """Return the first matching token-like value from a JSON payload."""
+
+    for json_key in json_keys:
+        value = payload.get(json_key)
+        if isinstance(value, str) and value:
+            return value
+        nested_value = nested_get(payload, json_key)
+        if isinstance(nested_value, str) and nested_value:
+            return nested_value
+    return None
+
+
 def resolve_token(
     explicit_token: str | None,
     env_names: Iterable[str],
     file_candidates: Iterable[str | Path],
     json_keys: Iterable[str],
     keychain_services: Iterable[str] = (),
+    keychain_accounts: Iterable[str] = (),
+    allow_generic_keychain: bool = True,
 ) -> str | None:
     """Resolve a secret from direct settings, env vars, files, or Keychain."""
 
@@ -128,15 +143,28 @@ def resolve_token(
         payload = load_json_file(file_candidate)
         if not payload:
             continue
-        for json_key in json_keys:
-            value = payload.get(json_key)
-            if isinstance(value, str) and value:
-                return value
-            nested_value = nested_get(payload, json_key)
-            if isinstance(nested_value, str) and nested_value:
-                return nested_value
+        token = token_from_payload(payload, json_keys)
+        if token:
+            return token
 
+    account_candidates = [account for account in keychain_accounts if account]
     for service in keychain_services:
+        for account in account_candidates:
+            secret = keychain_secret(service, account)
+            if not secret:
+                continue
+            try:
+                payload = json.loads(secret)
+            except json.JSONDecodeError:
+                payload = None
+            if isinstance(payload, dict):
+                token = token_from_payload(payload, json_keys)
+                if token:
+                    return token
+            if secret:
+                return secret
+        if not allow_generic_keychain:
+            continue
         secret = keychain_secret(service)
         if not secret:
             continue
@@ -145,13 +173,9 @@ def resolve_token(
         except json.JSONDecodeError:
             payload = None
         if isinstance(payload, dict):
-            for json_key in json_keys:
-                value = payload.get(json_key)
-                if isinstance(value, str) and value:
-                    return value
-                nested_value = nested_get(payload, json_key)
-                if isinstance(nested_value, str) and nested_value:
-                    return nested_value
+            token = token_from_payload(payload, json_keys)
+            if token:
+                return token
         if secret:
             return secret
 

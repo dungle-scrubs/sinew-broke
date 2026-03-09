@@ -1,5 +1,5 @@
 name = "sinew-broke"
-version = "0.1.1" # x-release-please-version
+version = "0.1.1"
 description = "Track AI cost, credits, quotas, and subscription windows"
 entry = "run.py"
 mode = "poll"
@@ -13,4 +13,4 @@ actions = false
 [defaults]
 interval = 60
 popup_type = "panel"
-timeout_ms = 10000
+timeout_ms = 30000

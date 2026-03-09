@@ -30,10 +30,21 @@ status bar. A [Sinew](https://github.com/dungle-scrubs/sinew) plugin.
 
 ## Installation
 
+This repo is meant to be cloned into a plugins directory that Sinew scans.
+It is not meant to be installed from a package registry.
+
 ```bash
-git clone https://github.com/dungle-scrubs/sinew-broke.git
-cd sinew-broke
+mkdir -p ~/dev/sinew-plugins
+git clone https://github.com/dungle-scrubs/sinew-broke.git ~/dev/sinew-plugins/sinew-broke
+cd ~/dev/sinew-plugins/sinew-broke
 uv sync
+```
+
+Then point Sinew at the parent plugins directory:
+
+```toml
+[plugins]
+paths = ["~/dev/sinew-plugins"]
 ```
 
 ## Sinew Configuration
@@ -64,9 +75,12 @@ Provider adapters are disabled by default. Turn on only the ones you use.
 Claude Code and GPT Subscription support multiple accounts.
 
 Claude Code accounts are auto-discovered from `~/.config/claude-work-dirs`
-when that file points at additional Claude config directories with their own
-`.credentials.json` files. For example, this setup shows both
-`Claude Code (.claude)` and `Claude Code (.claude-fuse)` in the popup:
+when that file points at additional Claude config directories. The plugin
+tracks one Claude account per config dir, shells out to `claude auth status --json`
+with `CLAUDE_CONFIG_DIR` for profile-scoped login status, then resolves auth
+from legacy `.credentials.json` files, profile-local `.claude.json` metadata,
+matching Tallow `auth.json` files when present, and the macOS Keychain. For example, this setup shows both `Claude Code (.claude)`
+and `Claude Code (.claude-fuse)` in the popup:
 
 ```text
 # ~/.config/claude-work-dirs
@@ -78,8 +92,8 @@ track GPT subscriptions too:
 
 ```toml
 settings.claude_code = [
-  { enabled = true, account_id = "personal", auth_file = "~/.claude/.credentials.json" },
-  { enabled = true, account_id = "fuse", auth_file = "~/.claude-fuse/.credentials.json" },
+  { enabled = true, account_id = "personal", config_dir = "~/.claude" },
+  { enabled = true, account_id = "fuse", config_dir = "~/.claude-fuse" },
 ]
 ```
 
@@ -91,6 +105,7 @@ Each account appears as a separate entry in the status bar popup.
 |---------|-------------|
 | `./run.py` | Sinew poll-mode entrypoint |
 | `uv run ai-costs status --json` | Dump normalized provider snapshots |
+| `uv run ai-costs claude-auth-debug --json` | Inspect Claude profile auth and token resolution |
 | `uv run ai-costs-openai record --model ... --cost-usd ...` | Append OpenAI ledger entry |
 | `uv run ai-costs-anthropic record --model ... --cost-usd ...` | Append Anthropic ledger entry |
 | `uv run ai-costs-openai forward --body-file request.json` | Forward OpenAI request and record usage |
@@ -120,7 +135,7 @@ API keys are resolved at runtime from (in order):
 
 1. Explicit `--api-key` flag or plugin settings
 2. Environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.)
-3. JSON credential files (e.g., `~/.claude/.credentials.json`)
+3. JSON credential files and profile-local metadata (for Claude, e.g. `~/.claude/.credentials.json` and `~/.claude/.claude.json`)
 4. macOS Keychain
 
 For local development, use an `.env.op.local` file with
@@ -129,8 +144,7 @@ For local development, use an `.env.op.local` file with
 ## Known Limitations
 
 - macOS only (Keychain integration, `~/Library/Application Support` paths)
-- Shell integration hardcodes `$HOME/dev/sinew-broke` — adjust if installed
-  elsewhere
+- Shell integration assumes `$HOME/dev/sinew-plugins/sinew-broke`
 - Pricing tables need manual updates when providers change rates
 - Claude Code and GPT Subscription adapters depend on undocumented OAuth
   endpoints that may change

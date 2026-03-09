@@ -32,6 +32,11 @@ from ai_costs.settings import (
 from ai_costs.storage import Storage
 from ai_costs.utils import age_minutes, now_iso, parse_timestamp
 
+FRIENDLY_ACCOUNT_LABELS = {
+    ".claude": "",
+    ".claude-fuse": "work",
+}
+
 FIXED_ORDER: tuple[ProviderAdapter, ...] = (
     ClaudeCodeAdapter(),
     AnthropicAPIAdapter(),
@@ -51,6 +56,18 @@ DEFAULT_TYPES: dict[str, tuple[list[Capability], SourceType]] = {
     "minimax": (["quota_only"], "quota_only"),
     "openrouter": (["credits", "cost_usd"], "authoritative_api"),
 }
+
+
+def friendly_account_label(account_id: str) -> str:
+    """Map internal account IDs to compact display labels.
+
+    :param account_id: Raw account identifier.
+    :returns: Short UI label suffix, or the original ID when unknown.
+    """
+
+    if account_id in FRIENDLY_ACCOUNT_LABELS:
+        return FRIENDLY_ACCOUNT_LABELS[account_id]
+    return account_id
 
 
 def expand_provider_configs(
@@ -103,8 +120,11 @@ def collect_snapshots(
                     account_id=config.account_id,
                 )
             if multi and config.account_id != "default":
+                label = friendly_account_label(config.account_id)
                 snapshot.display_name = (
-                    f"{adapter.spec.display_name} ({config.account_id})"
+                    adapter.spec.display_name
+                    if not label
+                    else f"{adapter.spec.display_name} ({label})"
                 )
             storage.upsert_snapshot(snapshot)
             snapshots.append(snapshot)
@@ -374,33 +394,56 @@ def build_snapshot_row(snapshot: AccountSnapshot) -> PopupRow:
     )
 
 
-def subscription_row_tone(snapshot: AccountSnapshot, claude_index: int) -> str:
-    """Choose a readable row tone for subscription windows."""
+def compact_window_label(kind: str) -> str:
+    """Render human-friendly subscription window labels.
 
-    tone = snapshot_tone(snapshot)
-    if snapshot.provider != "claude_code" or tone in {"warning", "error"}:
-        return tone
-    return "info" if claude_index % 2 == 0 else "success"
+    :param kind: Raw window label.
+    :returns: Readable display label.
+    """
+
+    label = subscription_window_label(kind)
+    if label == "5h":
+        return "5 hours"
+    if label == "7d":
+        return "7 days"
+    if label == "7d sonnet":
+        return "sonnet"
+    return label
 
 
 def build_subscription_rows(snapshots: list[AccountSnapshot]) -> list[PopupRow]:
-    """Expand subscription providers into one row per reset window."""
+    """Render grouped borderless metric rows inside one subscriptions card."""
 
     rows: list[PopupRow] = []
-    claude_index = 0
     for snapshot in snapshots:
-        tone = subscription_row_tone(snapshot, claude_index)
-        if snapshot.provider == "claude_code":
-            claude_index += 1
+        rows.append(
+            PopupRow(
+                label=snapshot.display_name,
+                detail=None,
+                subtitle=None,
+                progress=None,
+                tone=None,
+            )
+        )
         for window in snapshot.windows[:3]:
             percent = window.used_percent or 0.0
-            reset = format_until(window.resets_at)
             rows.append(
                 PopupRow(
-                    label=f"{snapshot.display_name} · {subscription_window_label(window.kind)}",
-                    subtitle=f"{percent:.0f}% · {reset}",
+                    label=compact_window_label(window.kind),
+                    detail=f"{percent:.0f}%",
+                    subtitle=format_until(window.resets_at),
                     progress=window.used_percent,
-                    tone=tone,
+                    tone=None,
+                )
+            )
+        if not snapshot.windows:
+            rows.append(
+                PopupRow(
+                    label="status",
+                    detail=primary_metric(snapshot),
+                    subtitle=row_subtitle(snapshot),
+                    progress=row_progress(snapshot),
+                    tone=None,
                 )
             )
     return rows

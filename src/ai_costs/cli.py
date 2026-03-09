@@ -9,6 +9,7 @@ import typer
 
 from ai_costs.models import UsageLedgerEntry
 from ai_costs.providers.base import ProviderError
+from ai_costs.providers.claude_code import claude_auth_diagnostics
 from ai_costs.service import build_output, collect_snapshots
 from ai_costs.settings import load_settings, runtime_dir
 from ai_costs.storage import Storage
@@ -29,9 +30,62 @@ def build_storage() -> Storage:
 
 
 def print_json(payload: Any) -> None:
-    """Print machine-readable JSON without extra formatting noise."""
+    """Print machine-readable JSON without extra formatting noise.
+
+    :param payload: JSON-serializable payload.
+    :returns: Nothing.
+    """
 
     typer.echo(json.dumps(payload, indent=2))
+
+
+def print_claude_auth_diagnostics(diagnostics: list[dict[str, Any]]) -> None:
+    """Render Claude auth diagnostics in a readable text format.
+
+    :param diagnostics: Claude auth diagnostic payloads.
+    :returns: Nothing.
+    """
+
+    for entry in diagnostics:
+        auth_status = entry.get("authStatus") or {}
+        resolution = entry.get("resolution") or {}
+        metadata = entry.get("metadata") or {}
+        sources = entry.get("sources") or {}
+        typer.echo(f"{entry['accountId']} -> {entry['configDir']}")
+        typer.echo(
+            "  auth: "
+            f"loggedIn={auth_status.get('loggedIn')} "
+            f"email={auth_status.get('email')} "
+            f"org={auth_status.get('orgName') or auth_status.get('orgId')} "
+            f"subscription={auth_status.get('subscriptionType')}"
+        )
+        typer.echo(
+            "  resolution: "
+            f"resolved={resolution.get('resolved')} source={resolution.get('source')}"
+        )
+        typer.echo(
+            "  metadata: "
+            f"oauthAccount={metadata.get('hasOauthAccount')} "
+            f"billing={metadata.get('billingType')}"
+        )
+        typer.echo("  env:")
+        for env_entry in sources.get("environment", []):
+            typer.echo(f"    - {env_entry['name']}: present={env_entry['present']}")
+        typer.echo("  files:")
+        for file_entry in sources.get("files", []):
+            typer.echo(
+                f"    - {file_entry['path']}: exists={file_entry['exists']} "
+                f"json={file_entry['json']} hasToken={file_entry['hasToken']} "
+                f"tokenKey={file_entry['tokenKey']}"
+            )
+        typer.echo("  keychain:")
+        keychain = sources.get("keychain") or {}
+        for key_entry in keychain.get("checks", []):
+            typer.echo(
+                f"    - service={keychain.get('service')} account={key_entry['account']} "
+                f"found={key_entry['found']} format={key_entry['format']} "
+                f"hasToken={key_entry['hasToken']} tokenKey={key_entry['tokenKey']}"
+            )
 
 
 @app.command()
@@ -48,6 +102,24 @@ def status(json_output: bool = typer.Option(False, "--json", help="Emit JSON")) 
         typer.echo(
             f"{snapshot.display_name}: {snapshot.status} ({snapshot.source_type})"
         )
+
+
+@app.command("claude-auth-debug")
+def claude_auth_debug(
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON")
+) -> None:
+    """Inspect Claude auth resolution for each discovered Claude profile.
+
+    :param json_output: Whether to emit JSON instead of text.
+    :returns: Nothing.
+    """
+
+    settings = load_settings()
+    diagnostics = claude_auth_diagnostics(settings)
+    if json_output:
+        print_json(diagnostics)
+        return
+    print_claude_auth_diagnostics(diagnostics)
 
 
 @app.command()
