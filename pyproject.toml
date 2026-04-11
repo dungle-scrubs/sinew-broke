@@ -30,7 +30,7 @@ Issues = "https://github.com/dungle-scrubs/sinew-broke/issues"
 dev = [
   "pytest>=8.4.0",
   "ruff>=0.12.0",
-  "ty>=0.0.1a19",
+  "ty>=0.0.29",
 ]
 
 [project.scripts]
